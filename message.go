@@ -240,6 +240,7 @@ func SetPartEncoding(e Encoding) PartSetting {
 
 type file struct {
 	Name     string
+	Reader   io.Reader
 	Header   map[string][]string
 	CopyFunc func(w io.Writer) error
 }
@@ -311,9 +312,36 @@ func (m *Message) appendFile(list []*file, name string, settings []FileSetting) 
 	return append(list, f)
 }
 
+func (m *Message) appendFileWithReader(list []*file, name string, reader io.Reader, settings []FileSetting) []*file {
+	f := &file{
+		Name:   filepath.Base(name),
+		Header: make(map[string][]string),
+		CopyFunc: func(w io.Writer) error {
+			if _, err := io.Copy(w, reader); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	for _, s := range settings {
+		s(f)
+	}
+
+	if list == nil {
+		return []*file{f}
+	}
+
+	return append(list, f)
+}
+
 // Attach attaches the files to the email.
 func (m *Message) Attach(filename string, settings ...FileSetting) {
 	m.attachments = m.appendFile(m.attachments, filename, settings)
+}
+
+func (m *Message) AttachUsingReader(filename string, reader io.Reader, settings ...FileSetting) {
+	m.attachments = m.appendFileWithReader(m.attachments, filename, reader, settings)
 }
 
 // Embed embeds the images to the email.
